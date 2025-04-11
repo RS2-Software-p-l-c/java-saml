@@ -1,9 +1,10 @@
 package com.onelogin.saml2.model.hsm;
 
+import com.azure.core.credential.TokenCredential;
 import com.azure.core.http.HttpClient;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
-import com.azure.identity.ClientSecretCredential;
 import com.azure.identity.ClientSecretCredentialBuilder;
+import com.azure.identity.ManagedIdentityCredentialBuilder;
 import com.azure.security.keyvault.keys.cryptography.CryptographyClient;
 import com.azure.security.keyvault.keys.cryptography.CryptographyClientBuilder;
 import com.azure.security.keyvault.keys.cryptography.models.EncryptionAlgorithm;
@@ -12,128 +13,168 @@ import com.onelogin.saml2.util.Constants;
 
 import java.util.HashMap;
 
-public class AzureKeyVault extends HSM {
+public class AzureKeyVault extends HSM<EncryptionAlgorithm> {
 
 	private String clientId;
 	private String clientCredentials;
 	private String tenantId;
 	private String keyVaultId;
 	private CryptographyClient akvClient;
-	private HashMap<String, KeyWrapAlgorithm> algorithmMapping;
+
+	// Creates a mapping between the algorithm URIs and the key wrap algorithm
+	// expected from the Azure Key Vault
+	HashMap<String, KeyWrapAlgorithm> keyWrapAlgorithmMap = new HashMap<String, KeyWrapAlgorithm>() {
+		{
+			put(Constants.RSA_1_5, KeyWrapAlgorithm.RSA1_5);
+			put(Constants.RSA_OAEP_MGF1P, KeyWrapAlgorithm.RSA_OAEP);
+			put(Constants.A128KW, KeyWrapAlgorithm.A128KW);
+			put(Constants.A192KW, KeyWrapAlgorithm.A192KW);
+			put(Constants.A256KW, KeyWrapAlgorithm.A256KW);
+		}
+	};
 
 	/**
-	 * Constructor to initialise an HSM object.
+	 * Initialises an Azure Key Vault object using client credentials.
 	 *
 	 * @param clientId          The Azure Key Vault client ID.
 	 * @param clientCredentials The Azure Key Vault client credentials.
 	 * @param tenantId          The Azure Key Vault tenant ID.
 	 * @param keyVaultId        The Azure Key Vault ID.
-	 * @return AzureKeyVault
 	 */
 	public AzureKeyVault(String clientId, String clientCredentials, String tenantId, String keyVaultId) {
+		super();
+
 		this.clientId = clientId;
 		this.clientCredentials = clientCredentials;
 		this.tenantId = tenantId;
 		this.keyVaultId = keyVaultId;
-
-		this.algorithmMapping = createAlgorithmMapping();
 	}
 
 	/**
-	 * Creates a mapping between the URLs received from the encrypted SAML
-	 * assertion and the algorithms as how they are expected to be received from
-	 * the Azure Key Vault.
+	 * Initialises an Azure Key Vault object using managed identity.
 	 *
-	 * @return The algorithm mapping.
+	 * @param keyVaultId The Azure Key Vault ID.
 	 */
-	private HashMap<String, KeyWrapAlgorithm> createAlgorithmMapping() {
-		HashMap<String, KeyWrapAlgorithm> mapping = new HashMap<>();
+	public AzureKeyVault(String keyVaultId) {
+		super();
 
-		mapping.put(Constants.RSA_1_5, KeyWrapAlgorithm.RSA1_5);
-		mapping.put(Constants.RSA_OAEP_MGF1P, KeyWrapAlgorithm.RSA_OAEP);
-		mapping.put(Constants.A128KW, KeyWrapAlgorithm.A128KW);
-		mapping.put(Constants.A192KW, KeyWrapAlgorithm.A192KW);
-		mapping.put(Constants.A256KW, KeyWrapAlgorithm.A256KW);
-
-		return mapping;
+		this.keyVaultId = keyVaultId;
 	}
 
 	/**
-	 * Retrieves the key wrap algorithm object based on the algorithm URL passed
-	 * within the SAML assertion.
+	 * Creates a mapping between the algorithm URIs and the encryption algorithm
+	 * expected from the Azure Key Vault.
 	 *
-	 * @param algorithmUrl The algorithm URL.
-	 * @return The KeyWrapAlgorithm.
+	 * @return a mapping for which encryption algorithm to use.
 	 */
-	private KeyWrapAlgorithm getAlgorithm(String algorithmUrl) {
-		return algorithmMapping.get(algorithmUrl);
+	@Override
+	protected HashMap<String, EncryptionAlgorithm> createEncryptionAlgorithmMap() {
+		HashMap<String, EncryptionAlgorithm> map = new HashMap<>();
+
+		map.put(Constants.RSA_1_5, EncryptionAlgorithm.RSA1_5);
+		map.put(Constants.RSA_OAEP_MGF1P, EncryptionAlgorithm.RSA_OAEP);
+		map.put(Constants.A128KW, EncryptionAlgorithm.A128KW);
+		map.put(Constants.A192KW, EncryptionAlgorithm.A192KW);
+		map.put(Constants.A256KW, EncryptionAlgorithm.A256KW);
+
+		return map;
 	}
 
 	/**
-	 * Sets the client to connect to the Azure Key Vault.
+	 * Retrieves the key wrap algorithm to use from the Azure Key Vault when
+	 * performing cryptographic functions.
+	 *
+	 * @param algorithmUri The algorithm URI.
+	 *
+	 * @return The key wrap algorithm to use from the Azure Key Vault.
+	 */
+	protected KeyWrapAlgorithm getKeyWrapAlgorithm(String algorithmUri) {
+		KeyWrapAlgorithm algorithm = keyWrapAlgorithmMap.get((algorithmUri));
+
+		if (algorithm == null)
+			LOGGER.warn("Cannot find which key wrap algorithm to use within the HSM for the algorithm URI "
+					+ algorithmUri);
+
+		return algorithm;
+	}
+
+	/**
+	 * Sets the Azure Key Vault client.
 	 */
 	@Override
 	public void setClient() {
-		ClientSecretCredential clientSecretCredential = new ClientSecretCredentialBuilder()
-			.clientId(clientId)
-			.clientSecret(clientCredentials)
-			.tenantId(tenantId)
-			.build();
+		TokenCredential credential;
+
+		if (clientId.isEmpty())
+			credential = new ManagedIdentityCredentialBuilder().build();
+		else
+			credential = new ClientSecretCredentialBuilder()
+					.clientId(clientId)
+					.clientSecret(clientCredentials)
+					.tenantId(tenantId)
+					.build();
 
 		HttpClient httpClient = new NettyAsyncHttpClientBuilder().build();
 
 		this.akvClient = new CryptographyClientBuilder()
-			.httpClient(httpClient)
-			.credential(clientSecretCredential)
-			.keyIdentifier(keyVaultId)
-			.buildClient();
+				.httpClient(httpClient)
+				.credential(credential)
+				.keyIdentifier(keyVaultId)
+				.buildClient();
+
 	}
 
 	/**
 	 * Wraps a key with a particular algorithm using the Azure Key Vault.
 	 *
-	 * @param algorithm The algorithm to use to wrap the key.
-	 * @param key       The key to wrap
+	 * @param algorithm The algorithm URI to use to wrap the key.
+	 * @param key       The key to wrap.
+	 *
 	 * @return A wrapped key.
 	 */
 	@Override
 	public byte[] wrapKey(String algorithm, byte[] key) {
-		return this.akvClient.wrapKey(KeyWrapAlgorithm.fromString(algorithm), key).getEncryptedKey();
+		return this.akvClient.wrapKey(getKeyWrapAlgorithm(algorithm), key).getEncryptedKey();
 	}
 
 	/**
 	 * Unwraps a key with a particular algorithm using the Azure Key Vault.
 	 *
-	 * @param algorithmUrl The algorithm to use to unwrap the key.
-	 * @param wrappedKey   The key to unwrap
+	 * @param algorithm  The algorithm URI to use to unwrap the key.
+	 * @param wrappedKey The key to unwrap.
+	 *
 	 * @return An unwrapped key.
 	 */
 	@Override
-	public byte[] unwrapKey(String algorithmUrl, byte[] wrappedKey) {
-		return this.akvClient.unwrapKey(getAlgorithm(algorithmUrl), wrappedKey).getKey();
+	public byte[] unwrapKey(String algorithm, byte[] wrappedKey) {
+		return this.akvClient.unwrapKey(getKeyWrapAlgorithm(algorithm), wrappedKey).getKey();
 	}
 
 	/**
-	 * Encrypts an array of bytes with a particular algorithm using the Azure Key Vault.
+	 * Encrypts an array of bytes with a particular algorithm using the Azure Key
+	 * Vault.
 	 *
-	 * @param algorithm The algorithm to use for encryption.
+	 * @param algorithm The algorithm URI to use for encryption.
 	 * @param plainText The array of bytes to encrypt.
+	 *
 	 * @return An encrypted array of bytes.
 	 */
 	@Override
 	public byte[] encrypt(String algorithm, byte[] plainText) {
-		return this.akvClient.encrypt(EncryptionAlgorithm.fromString(algorithm), plainText).getCipherText();
+		return this.akvClient.encrypt(getEncryptionAlgorithm(algorithm), plainText).getCipherText();
 	}
 
 	/**
-	 * Decrypts an array of bytes with a particular algorithm using the Azure Key Vault.
+	 * Decrypts an array of bytes with a particular algorithm using the Azure Key
+	 * Vault.
 	 *
-	 * @param algorithm  The algorithm to use for decryption.
+	 * @param algorithm  The algorithm URI to use for decryption.
 	 * @param cipherText The encrypted array of bytes.
+	 *
 	 * @return A decrypted array of bytes.
 	 */
 	@Override
 	public byte[] decrypt(String algorithm, byte[] cipherText) {
-		return this.akvClient.decrypt(EncryptionAlgorithm.fromString(algorithm), cipherText).getPlainText();
+		return this.akvClient.decrypt(getEncryptionAlgorithm(algorithm), cipherText).getPlainText();
 	}
 }

@@ -69,6 +69,14 @@
 			<version>1.10.1</version>
 			<optional>true</optional>
 		</dependency>
+
+		<!-- Amazon KMS -->
+		<dependency>
+			<groupId>software.amazon.awssdk</groupId>
+			<artifactId>kms</artifactId>
+			<version>2.31.17</version>
+			<optional>true</optional>
+		</dependency>
 	</dependencies>
 
 	<build>
@@ -106,7 +114,7 @@
 				<artifactId>maven-surefire-plugin</artifactId>
 				<version>2.22.2</version>
 				<configuration>
-                    <encoding>${project.build.sourceEncoding}</encoding>
+					<encoding>${project.build.sourceEncoding}</encoding>
 					<inputEncoding>${project.build.sourceEncoding}</inputEncoding>
 					<outputEncoding>${project.build.sourceEncoding}</outputEncoding>
 					<argLine>${jacoco.agent.argLine} -Dfile.encoding=${project.build.sourceEncoding} -Dline.separator=\n</argLine>
@@ -127,14 +135,14 @@
 							</rules>
 						</configuration>
 						<goals>
-						    <goal>enforce</goal>
+							<goal>enforce</goal>
 						</goals>
 					</execution>
 				</executions>
 			</plugin>
 		</plugins>
 	</build>
-<!--
+	<!--
 	<properties>
 		<jacoco.agent.argLine />
 	</properties>
