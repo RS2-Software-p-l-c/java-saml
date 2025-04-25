@@ -15,10 +15,12 @@ import java.util.HashMap;
 
 public class AzureKeyVault extends HSM<EncryptionAlgorithm> {
 
+	private final String keyVaultId;
+
 	private String clientId;
 	private String clientCredentials;
 	private String tenantId;
-	private String keyVaultId;
+
 	private CryptographyClient akvClient;
 
 	// Creates a mapping between the algorithm URIs and the key wrap algorithm
@@ -42,12 +44,11 @@ public class AzureKeyVault extends HSM<EncryptionAlgorithm> {
 	 * @param keyVaultId        The Azure Key Vault ID.
 	 */
 	public AzureKeyVault(String clientId, String clientCredentials, String tenantId, String keyVaultId) {
-		super();
+		this(keyVaultId);
 
 		this.clientId = clientId;
 		this.clientCredentials = clientCredentials;
 		this.tenantId = tenantId;
-		this.keyVaultId = keyVaultId;
 	}
 
 	/**
@@ -92,8 +93,10 @@ public class AzureKeyVault extends HSM<EncryptionAlgorithm> {
 		KeyWrapAlgorithm algorithm = keyWrapAlgorithmMap.get((algorithmUri));
 
 		if (algorithm == null)
-			LOGGER.warn("Cannot find which key wrap algorithm to use within the HSM for the algorithm URI "
-					+ algorithmUri);
+			throw new RuntimeException(
+					"Cannot find which key wrap algorithm to use within the HSM for the algorithm URI "
+					+ algorithmUri
+			);
 
 		return algorithm;
 	}

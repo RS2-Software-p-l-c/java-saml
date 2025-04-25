@@ -35,8 +35,10 @@ public abstract class HSM<T> {
 		T algorithm = encryptionAlgorithmMap.get((algorithmUri));
 
 		if (algorithm == null)
-			LOGGER.warn("Cannot find which encryption algorithm to use within the HSM for the algorithm URI "
-					+ algorithmUri);
+			throw new RuntimeException(
+					"Cannot find which encryption algorithm to use within the HSM for the algorithm URI "
+							+ algorithmUri
+			);
 
 		return algorithm;
 	}
