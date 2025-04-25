@@ -2,12 +2,7 @@ package com.onelogin.saml2.model.hsm;
 
 import java.util.HashMap;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 public abstract class HSM<T> {
-
-	protected static final Logger LOGGER = LoggerFactory.getLogger(HSM.class);
 
 	protected HashMap<String, T> encryptionAlgorithmMap;
 
