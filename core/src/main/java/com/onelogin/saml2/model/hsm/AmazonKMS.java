@@ -12,7 +12,7 @@ import software.amazon.awssdk.services.kms.model.EncryptionAlgorithmSpec;
 
 public class AmazonKMS extends HSM<EncryptionAlgorithmSpec> {
 
-	private String keyId;
+	private final String keyId;
 	private KmsClient kmsClient;
 
 	/**
@@ -44,9 +44,6 @@ public class AmazonKMS extends HSM<EncryptionAlgorithmSpec> {
 		map.put(Constants.AES128_CBC, EncryptionAlgorithmSpec.SYMMETRIC_DEFAULT);
 		map.put(Constants.AES192_CBC, EncryptionAlgorithmSpec.SYMMETRIC_DEFAULT);
 		map.put(Constants.AES256_CBC, EncryptionAlgorithmSpec.SYMMETRIC_DEFAULT);
-
-		// http://www.w3.org/2001/04/xmlenc#rsa-oaep-sha256
-		// http://www.w3.org/2009/xmlenc11#rsa-oaep
 
 		return map;
 	}
