@@ -108,7 +108,7 @@ public class AzureKeyVault extends HSM<EncryptionAlgorithm> {
 	public void setClient() {
 		TokenCredential credential;
 
-		if (clientId.isEmpty())
+		if (clientId == null)
 			credential = new ManagedIdentityCredentialBuilder().build();
 		else
 			credential = new ClientSecretCredentialBuilder()
